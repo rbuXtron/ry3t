@@ -45,30 +45,42 @@ MODBUS_SERVER_PORT = config.get("modbus_server_port", 502)
 # Holding Registers (Read/Write) - Function Code 3/6/16
 MODBUS_REGISTERS = {
     # Sensor Data Registers (Read-Only) - Starting at 40001
-    "Miner1HSRT": 40001,
-    "Miner1Power": 40003,  # Uses 2 registers (40003-40004)
-    "Miner1Uptime": 40005,
-    "Miner2HSRT": 40006,
-    "Miner2Power": 40008,  # Uses 2 registers (40008-40009)
-    "Miner2Uptime": 40010,
-    "ColdWater": 40011,    # Uses 2 registers (40011-40012)
-    "ColdOil": 40013,      # Uses 2 registers (40013-40014)
-    "HotWater": 40015,     # Uses 2 registers (40015-40016)
-    "HotOil": 40017,       # Uses 2 registers (40017-40018)
-    "TempWaterTank1": 40019,  # Uses 2 registers (40019-40020)
-    "TempWaterTank2": 40021,  # Uses 2 registers (40021-40022)
-    "TempWaterTank3": 40023,  # Uses 2 registers (40023-40024)
-    "TempWaterTank4": 40025,  # Uses 2 registers (40025-40026)
-    "PumpPrimaryAnalogOut": 40027,
-    "PumpSecondaryAnalogOut": 40028,
+    "Heating": 40001,
+    "Modes": 40002,  # Uses 2 registers (40003-40004)
+    "Power_Modes": 40003,
+    "Status": 40004,
+    "Power_Level": 40005,  # Uses 2 registers (40008-40009)
+    "Power_Limit": 40006,
+    "Reister_07": 40007,    # Uses 2 registers (40011-40012)
+    "Reister_08": 40008,      # Uses 2 registers (40013-40014)
+    "Reister_09": 40009,     # Uses 2 registers (40015-40016)
+    "Reister_10": 40010,       # Uses 2 registers (40017-40018)
+    "Reister_12": 40011,  # Uses 2 registers (40019-40020)
+
     
     # Heater Control Registers (Read/Write) - Starting at 40100
-    "HeaterStatus": 40100,
-    "HeaterErrorCodes": 40101,
-    "HeaterAutomation": 40102,
-    "HeaterPowerMode": 40103,
-    "HeaterPowerLevel": 40104,
-    "HeaterPowerLimit": 40105,
+    "Status": 40100,
+    "ErrorCodes": 40101,
+    "Automation": 40102,
+    "PowerMode": 40103,
+    "PowerLevel": 40104,
+    "PowerLimit": 40105,
+    "Miner1HSRT": 40106, # Uses 2 registers (40106-40107)
+    "Miner1Power": 40108, # Uses 2 registers (40108-40109)
+    "Miner1Uptime": 40110, # Uses 2 registers (40110-40111)
+    "Miner2HSRT": 40112, # Uses 2 registers (40112-40113)
+    "Miner2Power": 40114, # Uses 2 registers (40114-40115)
+    "Miner2Uptime": 40116, # Uses 2 registers (40116-40117)
+    "ColdWater": 40118, # Uses 2 registers (40118-40119)
+    "ColdOil": 40120, # Uses 2 registers (40120-40121)
+    "HotWater": 40122, # Uses 2 registers (40122-40123)
+    "HotOil": 40124, # Uses 2 registers (40124-40125)
+    "TempWaterTank1": 40126, # Uses 2 registers (40126-40127)
+    "TempWaterTank2": 40128, # Uses 2 registers (40128-40129)
+    "TempWaterTank3": 40130, # Uses 2 registers (40130-40131)
+    "TempWaterTank4": 40132, # Uses 2 registers (40132-40133)
+    "PumpPrimaryAnalogOut": 40134, # Uses 1 registers (40134)
+    "PumpSecondaryAnalogOut": 40135, # Uses 1 registers (40135)
     
     # Control Commands (Write-Only) - Starting at 40200
     "HeaterCommand": 40200,  # 0=off, 1=on
