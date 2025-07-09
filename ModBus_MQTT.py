@@ -37,7 +37,7 @@ else:
 
 # Modbus Configuration
 MODBUS_SERVER_IP = config.get("modbus_server_ip", "0.0.0.0")
-MODBUS_SERVER_PORT = config.get("modbus_server_port", 502)
+MODBUS_SERVER_PORT = config.get("modbus_server_port", 5020)
 
 #region: Modbus Register Mapping =====================================================================
 
