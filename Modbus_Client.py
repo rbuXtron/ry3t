@@ -1,385 +1,361 @@
 #!/usr/bin/env python3
-# LOXONE Simulator - Modbus TCP Client
-# Simulates a LOXONE system reading sensor data and controlling heating
+"""
+Interactive Modbus Test Client für pymodbus 3.9.2
+Ermöglicht direktes Lesen und Schreiben von Registern
+"""
 
-import time
-import struct
-import random
 from pymodbus.client import ModbusTcpClient
-from pymodbus.exceptions import ModbusException
+import struct
+import time
 from datetime import datetime
-import threading
-import argparse
 
-# ANSI color codes for terminal output
-class Colors:
-    HEADER = '\033[95m'
-    BLUE = '\033[94m'
-    CYAN = '\033[96m'
-    GREEN = '\033[92m'
-    YELLOW = '\033[93m'
-    RED = '\033[91m'
-    ENDC = '\033[0m'
-    BOLD = '\033[1m'
+# Server Configuration
+SERVER_IP = "localhost"  # Ändere auf deine Docker-Host IP
+SERVER_PORT = 5020
 
-# Register mapping (same as server)
-MODBUS_REGISTERS = {
-    # Sensor Data Registers (Read-Only)
-    "Miner1HSRT": 40001,
-    "Miner1Power": 40003,
-    "Miner1Uptime": 40005,
-    "Miner2HSRT": 40006,
-    "Miner2Power": 40008,
-    "Miner2Uptime": 40010,
-    "ColdWater": 40011,
-    "ColdOil": 40013,
-    "HotWater": 40015,
-    "HotOil": 40017,
-    "TempWaterTank1": 40019,
-    "TempWaterTank2": 40021,
-    "TempWaterTank3": 40023,
-    "TempWaterTank4": 40025,
-    "PumpPrimaryAnalogOut": 40027,
-    "PumpSecondaryAnalogOut": 40028,
+# Register Reference
+REGISTER_INFO = {
+    # Sensor Data (Read-Only)
+    40001: ("Heating", "int", "is heating active (0=OFF, 1=ON)"),
+    40002: ("Modes", "int", "Current Modes (bitmask)"),
+    40003: ("Power_Modes", "int", "Power Modes (1-8)"),
+    40004: ("Status", "int", "System Status (0=OK, 1=Error)"),
+    40005: ("Power_Level", "int", "Power Level (0-100)"),
+    40006: ("Power_Limit", "int", "Power Limit (0-100)"),
+    40007: ("Register_07", "int", "Register_07"),
+    40008: ("Register_08", "int", "Register_08"),
+    40009: ("Register_09", "int", "Register_09§"),
+    40010: ("Register_10", "int", "Register_10"),
+    40011: ("Register_11", "int", "Register_11"),
+
     
-    # Heater Control Registers (Read/Write)
-    "HeaterStatus": 40100,
-    "HeaterErrorCodes": 40101,
-    "HeaterAutomation": 40102,
-    "HeaterPowerMode": 40103,
-    "HeaterPowerLevel": 40104,
-    "HeaterPowerLimit": 40105,
+    # Heater Status (Read/Write)
+    40100: ("Status", "int", "Heater Status (0=OFF, 1=ON)"),
+    40101: ("ErrorCodes", "int", "Heater Error Codes"),
+    40102: ("Automation", "int", "Heater Automation Mode"),
+    40103: ("PowerMode", "int", "Heater Power Mode"),
+    40104: ("PowerLevel", "int", "Heater Power Level"),
+    40105: ("PowerLimit", "int", "Heater Power Limit"),
+    40106: ("Miner1HSRT", "float", "Miner 1 HSRT (High Speed Register Transfer)"),  # Uses 2 registers (40106-40107)
+    40108: ("Miner1Power", "float", "Miner 1 Power"),  # Uses 2 registers (40108-40109)
+    40110: ("Miner1Uptime", "float", "Miner 1 Uptime"),  # Uses 2 registers (40110-40111)
+    40112: ("Miner2HSRT", "float", "Miner 2 HSRT (High Speed Register Transfer)"),  # Uses 2 registers (40112-40113)
+    40114: ("Miner2Power", "float", "Miner 2 Power"),  # Uses 2 registers (40114-40115)
+    40116: ("Miner2Uptime", "float", "Miner 2 Uptime"),  # Uses 2 registers (40116-40117)
+    40118: ("ColdWater", "float", "Cold Water Temperature (°C)"),  # Uses 2 registers (40118-40119)
+    40120: ("ColdOil", "float", "Cold Oil Temperature (°C)"),  # Uses 2 registers (40120-40121)
+    40122: ("HotWater", "float", "Hot Water Temperature (°C)"),  # Uses 2 registers (40122-40123)
+    40124: ("HotOil", "float", "Hot Oil Temperature (°C)"),  # Uses 2 registers (40124-40125)
+    40126: ("TempWaterTank1", "float", "Water Tank 1 Temperature (°C)"),  # Uses 2 registers (40126-40127)
+    40128: ("TempWaterTank2", "float", "Water Tank 2 Temperature (°C)"),  # Uses 2 registers (40128-40129)
+    40130: ("TempWaterTank3", "float", "Water Tank 3 Temperature (°C)"),  # Uses 2 registers (40130-40131)
+    40132: ("TempWaterTank4", "float", "Water Tank 4 Temperature (°C)"),  # Uses 2 registers (40132-40133)
+    40134: ("PumpPrimaryAnalogOuut", "float", "Primary Pump Analog Output"),  # Uses 2 registers (40134-40135
+    40136: ("PumpSecondaryAnalogOut", "float", "Secondary Pump Analog Output"),  # Uses 2 registers (40136-40137)
+    
     
     # Control Commands (Write-Only)
-    "HeaterCommand": 40200,
-    "HeaterMode": 40201,
-    "SystemReset": 40202,
+    40200: ("HeaterCommand", "int", "Heater Command (0=OFF, 1=ON)"),
+    40201: ("HeaterMode", "int", "Heater Mode (1-8)"),
+    40202: ("SystemReset", "int", "System Reset Command"),
 }
 
-class LoxoneSimulator:
-    def __init__(self, host='localhost', port=502):
+def float_from_registers(registers):
+    """Convert two 16-bit registers to float"""
+    if len(registers) < 2:
+        return None
+    packed = struct.pack('>HH', registers[0], registers[1])
+    return struct.unpack('>f', packed)[0]
+
+def float_to_registers(value):
+    """Convert float to two 16-bit registers"""
+    packed = struct.pack('>f', float(value))
+    high, low = struct.unpack('>HH', packed)
+    return [high, low]
+
+class InteractiveModbusClient:
+    def __init__(self, host=SERVER_IP, port=SERVER_PORT):
+        self.client = None
         self.host = host
         self.port = port
-        self.client = ModbusTcpClient(host=self.host, port=self.port)
-        self.connected = False
-        self.running = False
-        
-        # Simulated room temperatures for heating control
-        self.room_temps = {
-            "living_room": 20.5,
-            "bedroom": 19.0,
-            "bathroom": 22.0,
-            "kitchen": 21.0
-        }
-        
-        # Heating setpoints
-        self.setpoints = {
-            "living_room": 21.0,
-            "bedroom": 19.0,
-            "bathroom": 23.0,
-            "kitchen": 21.0
-        }
-        
-        # Current heating state
-        self.heating_on = False
-        self.heating_mode = 5  # Loxone mode
         
     def connect(self):
         """Connect to Modbus server"""
-        try:
-            print(f"{Colors.CYAN}Attempting to connect to {self.host}:{self.port}...{Colors.ENDC}")
-            self.connected = self.client.connect()
-            if self.connected:
-                print(f"{Colors.GREEN}✓ LOXONE connected to Modbus server at {self.host}:{self.port}{Colors.ENDC}")
-                # Test read to verify connection
-                try:
-                    result = self.client.read_holding_registers(address=0, count=1, slave=0)
-                    if not result.isError():
-                        print(f"{Colors.GREEN}✓ Connection verified - Modbus communication working{Colors.ENDC}")
-                    else:
-                        print(f"{Colors.YELLOW}⚠ Connected but test read failed: {result}{Colors.ENDC}")
-                except Exception as e:
-                    print(f"{Colors.YELLOW}⚠ Connected but test failed: {e}{Colors.ENDC}")
-            else:
-                print(f"{Colors.RED}✗ LOXONE failed to connect to {self.host}:{self.port}{Colors.ENDC}")
-                print(f"{Colors.YELLOW}Possible causes:")
-                print(f"  - Modbus server not running")
-                print(f"  - Wrong IP address or port")
-                print(f"  - Firewall blocking connection")
-                print(f"  - Port < 1024 needs sudo{Colors.ENDC}")
-        except Exception as e:
-            print(f"{Colors.RED}✗ Connection error: {e}{Colors.ENDC}")
-            self.connected = False
-        return self.connected
+        self.client = ModbusTcpClient(self.host, port=self.port)
+        if not self.client.connect():
+            print(f"❌ Kann nicht zu {self.host}:{self.port} verbinden!")
+            self.port = 5020
+            self.client = ModbusTcpClient(self.host, port=self.port)
+            if not self.client.connect():
+                return False
+        print(f"✅ Verbunden mit {self.host}:{self.port}")
+        return True
     
     def disconnect(self):
-        """Disconnect from Modbus server"""
-        self.running = False
-        self.client.close()
-        print(f"{Colors.YELLOW}LOXONE disconnected from Modbus server{Colors.ENDC}")
+        """Disconnect from server"""
+        if self.client:
+            self.client.close()
+            print("🔌 Verbindung geschlossen")
     
-    def modbus_registers_to_float(self, registers):
-        """Convert two 16-bit Modbus registers to float"""
-        if len(registers) < 2:
+    def read_register(self, address, count=1):
+        """Read register(s) at given address"""
+        modbus_addr = address - 40001  # Convert to 0-based
+        result = self.client.read_holding_registers(modbus_addr, count=count, slave=0)
+        if result.isError():
+            print(f"❌ Fehler beim Lesen: {result}")
             return None
-        packed = struct.pack('>HH', registers[0], registers[1])
-        return struct.unpack('>f', packed)[0]
+        return result.registers
     
-    def read_float_register(self, name):
-        """Read a float value from two consecutive registers"""
-        if name not in MODBUS_REGISTERS:
-            return None
-            
-        address = MODBUS_REGISTERS[name] - 40001
-        
-        try:
-            result = self.client.read_holding_registers(address=address, count=2, slave=0)
-            if not result.isError():
-                return self.modbus_registers_to_float(result.registers)
-        except ModbusException:
-            pass
-        return None
-    
-    def read_int_register(self, name):
-        """Read an integer value from a single register"""
-        if name not in MODBUS_REGISTERS:
-            return None
-            
-        address = MODBUS_REGISTERS[name] - 40001
-        
-        try:
-            result = self.client.read_holding_registers(address=address, count=1, slave=0)
-            if not result.isError():
-                return result.registers[0]
-        except ModbusException:
-            pass
-        return None
-    
-    def write_register(self, name, value):
-        """Write a value to a register"""
-        if name not in MODBUS_REGISTERS:
+    def write_register(self, address, value):
+        """Write value to register"""
+        modbus_addr = address - 40001  # Convert to 0-based
+        result = self.client.write_register(modbus_addr, value, slave=0)
+        if result.isError():
+            print(f"❌ Fehler beim Schreiben: {result}")
             return False
-            
-        address = MODBUS_REGISTERS[name] - 40001
-        
-        try:
-            result = self.client.write_register(address=address, value=int(value), slave=0)
-            return not result.isError()
-        except ModbusException:
+        return True
+    
+    def write_registers(self, address, values):
+        """Write multiple values to consecutive registers"""
+        modbus_addr = address - 40001  # Convert to 0-based
+        result = self.client.write_registers(modbus_addr, values, slave=0)
+        if result.isError():
+            print(f"❌ Fehler beim Schreiben: {result}")
             return False
+        return True
     
-    def read_all_temperatures(self):
-        """Read all temperature sensors"""
-        temps = {}
-        temp_sensors = [
-            "ColdWater", "ColdOil", "HotWater", "HotOil",
-            "TempWaterTank1", "TempWaterTank2", "TempWaterTank3", "TempWaterTank4"
-        ]
+    def interactive_read(self):
+        """Interactive read mode"""
+        print("\n📖 REGISTER LESEN")
+        print("-" * 40)
         
-        for sensor in temp_sensors:
-            value = self.read_float_register(sensor)
-            if value is not None:
-                temps[sensor] = value
-        
-        return temps
-    
-    def simulate_room_temperatures(self):
-        """Simulate room temperature changes"""
-        for room in self.room_temps:
-            # Random temperature fluctuation
-            change = random.uniform(-0.1, 0.1)
-            
-            # If heating is on and room is below setpoint, increase temp
-            if self.heating_on and self.room_temps[room] < self.setpoints[room]:
-                change += 0.15
-            # If heating is off and room is above outside temp, decrease
-            elif not self.heating_on and self.room_temps[room] > 15.0:
-                change -= 0.05
-                
-            self.room_temps[room] += change
-            self.room_temps[room] = round(self.room_temps[room], 1)
-    
-    def check_heating_requirement(self):
-        """Check if heating is required based on room temperatures"""
-        # Check if any room is below setpoint - 0.5°C (hysteresis)
-        need_heating = False
-        for room, temp in self.room_temps.items():
-            if temp < (self.setpoints[room] - 0.5):
-                need_heating = True
-                break
-        
-        # Check if all rooms are above setpoint + 0.5°C
-        can_stop_heating = True
-        for room, temp in self.room_temps.items():
-            if temp < (self.setpoints[room] + 0.5):
-                can_stop_heating = False
-                break
-        
-        return need_heating, can_stop_heating
-    
-    def control_heating(self, turn_on, mode=5):
-        """Send heating control command"""
-        if turn_on:
-            print(f"{Colors.YELLOW}LOXONE: Turning heating ON (Mode: {mode}){Colors.ENDC}")
-            self.write_register("HeaterCommand", 1)
-            time.sleep(0.1)
-            self.write_register("HeaterMode", mode)
-            self.heating_on = True
-        else:
-            print(f"{Colors.BLUE}LOXONE: Turning heating OFF{Colors.ENDC}")
-            self.write_register("HeaterCommand", 0)
-            self.heating_on = False
-    
-    def display_status(self):
-        """Display current status in LOXONE style"""
-        print(f"\n{Colors.HEADER}{'='*60}")
-        print(f"LOXONE HOME AUTOMATION - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-        print(f"{'='*60}{Colors.ENDC}")
-        
-        # Room temperatures
-        print(f"\n{Colors.BOLD}Room Temperatures:{Colors.ENDC}")
-        for room, temp in self.room_temps.items():
-            setpoint = self.setpoints[room]
-            status = f"{Colors.GREEN}✓{Colors.ENDC}" if temp >= setpoint else f"{Colors.RED}↓{Colors.ENDC}"
-            print(f"  {room.replace('_', ' ').title():15} {temp:5.1f}°C (Set: {setpoint:.1f}°C) {status}")
-        
-        # System temperatures
-        print(f"\n{Colors.BOLD}System Temperatures:{Colors.ENDC}")
-        temps = self.read_all_temperatures()
-        for name, value in temps.items():
-            print(f"  {name:15} {value:5.1f}°C")
-        
-        # Heating status
-        heater_status = self.read_int_register("HeaterStatus")
-        heater_mode = self.read_int_register("HeaterAutomation")
-        print(f"\n{Colors.BOLD}Heating System:{Colors.ENDC}")
-        print(f"  Status:         {'ON' if heater_status else 'OFF'}")
-        print(f"  Mode:           {heater_mode}")
-        print(f"  Control:        {'LOXONE Active' if self.heating_on else 'LOXONE Standby'}")
-        
-        # Miner status
-        print(f"\n{Colors.BOLD}Miner Status:{Colors.ENDC}")
-        miner1_power = self.read_float_register("Miner1Power")
-        miner2_power = self.read_float_register("Miner2Power")
-        if miner1_power:
-            print(f"  Miner 1:        {miner1_power:.0f}W")
-        if miner2_power:
-            print(f"  Miner 2:        {miner2_power:.0f}W")
-        
-    def run_automation(self, interval=10):
-        """Run LOXONE automation logic"""
-        self.running = True
-        print(f"\n{Colors.GREEN}LOXONE Automation Started{Colors.ENDC}")
-        print(f"Checking temperatures every {interval} seconds\n")
-        
-        cycle = 0
-        while self.running:
-            try:
-                # Simulate room temperature changes
-                self.simulate_room_temperatures()
-                
-                # Check heating requirements
-                need_heating, can_stop = self.check_heating_requirement()
-                
-                # Control heating based on requirements
-                if need_heating and not self.heating_on:
-                    self.control_heating(turn_on=True, mode=5)  # Mode 5 = Loxone
-                elif can_stop and self.heating_on:
-                    self.control_heating(turn_on=False)
-                
-                # Display status every 3 cycles
-                if cycle % 3 == 0:
-                    self.display_status()
-                
-                cycle += 1
-                time.sleep(interval)
-                
-            except KeyboardInterrupt:
-                break
-            except Exception as e:
-                print(f"{Colors.RED}Error in automation: {e}{Colors.ENDC}")
-                time.sleep(interval)
-        
-        print(f"\n{Colors.YELLOW}LOXONE Automation Stopped{Colors.ENDC}")
-    
-    def manual_control_mode(self):
-        """Interactive manual control mode"""
-        print(f"\n{Colors.HEADER}LOXONE MANUAL CONTROL MODE{Colors.ENDC}")
-        print("Commands:")
-        print("  1 - Turn heating ON")
-        print("  0 - Turn heating OFF")
-        print("  s - Show status")
-        print("  r - Read all sensors")
-        print("  t - Set room temperature")
-        print("  q - Quit")
+        # Show reference
+        show_ref = input("Register-Referenz anzeigen? (j/n): ")
+        if show_ref.lower() == 'j':
+            self.show_register_reference()
         
         while True:
             try:
-                cmd = input(f"\n{Colors.CYAN}LOXONE> {Colors.ENDC}").strip().lower()
-                
-                if cmd == '1':
-                    mode = input("Select mode (1-8, default 5 for Loxone): ").strip()
-                    mode = int(mode) if mode else 5
-                    self.control_heating(turn_on=True, mode=mode)
-                    
-                elif cmd == '0':
-                    self.control_heating(turn_on=False)
-                    
-                elif cmd == 's':
-                    self.display_status()
-                    
-                elif cmd == 'r':
-                    temps = self.read_all_temperatures()
-                    print(f"\n{Colors.BOLD}All Sensor Readings:{Colors.ENDC}")
-                    for name, value in temps.items():
-                        print(f"  {name:20} {value:6.1f}°C")
-                    
-                elif cmd == 't':
-                    room = input("Room (living_room/bedroom/bathroom/kitchen): ").strip()
-                    if room in self.setpoints:
-                        temp = float(input(f"New setpoint for {room}: "))
-                        self.setpoints[room] = temp
-                        print(f"Setpoint updated: {room} = {temp}°C")
-                    
-                elif cmd == 'q':
+                address = input("\nRegister-Adresse (z.B. 40015) oder 'q' zum Beenden: ")
+                if address.lower() == 'q':
                     break
+                
+                address = int(address)
+                
+                # Get info about register
+                if address in REGISTER_INFO:
+                    name, dtype, desc = REGISTER_INFO[address]
+                    print(f"📋 {name}: {desc}")
                     
+                    if dtype == "float":
+                        # Read 2 registers for float
+                        registers = self.read_register(address, 2)
+                        if registers:
+                            value = float_from_registers(registers)
+                            print(f"✅ Wert: {value:.2f}")
+                            print(f"   Raw: {registers}")
+                    else:
+                        # Read single register for int
+                        registers = self.read_register(address, 1)
+                        if registers:
+                            print(f"✅ Wert: {registers[0]}")
                 else:
-                    print("Unknown command")
-                    
-            except KeyboardInterrupt:
-                break
+                    # Unknown register - ask for type
+                    dtype = input("Datentyp (int/float): ").lower()
+                    if dtype == "float":
+                        registers = self.read_register(address, 2)
+                        if registers:
+                            value = float_from_registers(registers)
+                            print(f"✅ Wert: {value:.2f}")
+                            print(f"   Raw: {registers}")
+                    else:
+                        registers = self.read_register(address, 1)
+                        if registers:
+                            print(f"✅ Wert: {registers[0]}")
+                            
+            except ValueError:
+                print("❌ Ungültige Eingabe!")
             except Exception as e:
-                print(f"{Colors.RED}Error: {e}{Colors.ENDC}")
+                print(f"❌ Fehler: {e}")
+    
+    def interactive_write(self):
+        """Interactive write mode"""
+        print("\n✍️  REGISTER SCHREIBEN")
+        print("-" * 40)
+        print("⚠️  Vorsicht: Schreiben kann das System beeinflussen!")
+        
+        # Show reference
+        show_ref = input("Register-Referenz anzeigen? (j/n): ")
+        if show_ref.lower() == 'j':
+            self.show_register_reference(write_only=True)
+        
+        while True:
+            try:
+                address = input("\nRegister-Adresse (z.B. 40200) oder 'q' zum Beenden: ")
+                if address.lower() == 'q':
+                    break
+                
+                address = int(address)
+                
+                # Get info about register
+                if address in REGISTER_INFO:
+                    name, dtype, desc = REGISTER_INFO[address]
+                    print(f"📋 {name}: {desc}")
+                    
+                    if dtype == "float":
+                        value = float(input("Float-Wert eingeben: "))
+                        registers = float_to_registers(value)
+                        if self.write_registers(address, registers):
+                            print(f"✅ Geschrieben: {value} -> Register {address}-{address+1}")
+                    else:
+                        value = int(input("Integer-Wert eingeben: "))
+                        if self.write_register(address, value):
+                            print(f"✅ Geschrieben: {value} -> Register {address}")
+                else:
+                    # Unknown register
+                    dtype = input("Datentyp (int/float): ").lower()
+                    if dtype == "float":
+                        value = float(input("Float-Wert eingeben: "))
+                        registers = float_to_registers(value)
+                        if self.write_registers(address, registers):
+                            print(f"✅ Geschrieben: {value} -> Register {address}-{address+1}")
+                    else:
+                        value = int(input("Integer-Wert eingeben: "))
+                        if self.write_register(address, value):
+                            print(f"✅ Geschrieben: {value} -> Register {address}")
+                            
+            except ValueError:
+                print("❌ Ungültige Eingabe!")
+            except Exception as e:
+                print(f"❌ Fehler: {e}")
+    
+    def show_register_reference(self, write_only=False):
+        """Show register reference"""
+        print("\n📋 REGISTER REFERENZ")
+        print("=" * 80)
+        print(f"{'Adresse':<8} {'Name':<25} {'Typ':<6} {'Beschreibung':<40}")
+        print("-" * 80)
+        
+        for addr, (name, dtype, desc) in sorted(REGISTER_INFO.items()):
+            if write_only and addr < 40100:
+                continue
+            print(f"{addr:<8} {name:<25} {dtype:<6} {desc:<40}")
+    
+    def monitor_registers(self):
+        """Monitor specific registers continuously"""
+        print("\n📡 REGISTER MONITORING")
+        print("-" * 40)
+        
+        registers = []
+        print("Gib die zu überwachenden Register ein (getrennt mit Komma)")
+        print("Beispiel: 40015,40100,40003")
+        input_str = input("Register: ")
+        
+        try:
+            for reg in input_str.split(','):
+                addr = int(reg.strip())
+                if addr in REGISTER_INFO:
+                    registers.append((addr, REGISTER_INFO[addr]))
+                else:
+                    dtype = input(f"Datentyp für Register {addr} (int/float): ").lower()
+                    registers.append((addr, (f"Reg_{addr}", dtype, f"Register {addr}")))
+        except:
+            print("❌ Ungültige Eingabe!")
+            return
+        
+        interval = int(input("Update-Intervall in Sekunden (Standard: 2): ") or "2")
+        
+        print(f"\n📡 Überwache {len(registers)} Register (Ctrl+C zum Beenden)")
+        print("-" * 60)
+        
+        try:
+            while True:
+                timestamp = datetime.now().strftime("%H:%M:%S")
+                print(f"\n[{timestamp}]", end="")
+                
+                for addr, (name, dtype, desc) in registers:
+                    if dtype == "float":
+                        regs = self.read_register(addr, 2)
+                        if regs:
+                            value = float_from_registers(regs)
+                            print(f" | {name}: {value:.2f}", end="")
+                    else:
+                        regs = self.read_register(addr, 1)
+                        if regs:
+                            print(f" | {name}: {regs[0]}", end="")
+                
+                time.sleep(interval)
+                
+        except KeyboardInterrupt:
+            print("\n\n✋ Monitoring beendet")
 
 def main():
-    parser = argparse.ArgumentParser(description='LOXONE Simulator - Modbus Client')
-    parser.add_argument('--host', default='localhost', help='Modbus server host')
-    parser.add_argument('--port', type=int, default=502, help='Modbus server port')
-    parser.add_argument('--mode', choices=['auto', 'manual'], default='auto',
-                        help='Operation mode: auto (automation) or manual (interactive)')
-    parser.add_argument('--interval', type=int, default=10, 
-                        help='Automation check interval in seconds')
+    print("="*60)
+    print("INTERACTIVE MODBUS CLIENT")
+    print("="*60)
     
-    args = parser.parse_args()
+    # Get server address
+    host = input(f"Server IP [{SERVER_IP}]: ") or SERVER_IP
+    port = input(f"Server Port [{SERVER_PORT}]: ") or SERVER_PORT
+    port = int(port)
     
-    # Create LOXONE simulator
-    loxone = LoxoneSimulator(host=args.host, port=args.port)
+    client = InteractiveModbusClient(host, port)
     
-    # Connect to server
-    if not loxone.connect():
+    if not client.connect():
         return
     
     try:
-        if args.mode == 'auto':
-            # Run automation
-            loxone.run_automation(interval=args.interval)
-        else:
-            # Manual control mode
-            loxone.manual_control_mode()
+        while True:
+            print("\n" + "="*60)
+            print("HAUPTMENÜ")
+            print("="*60)
+            print("1. Register lesen")
+            print("2. Register schreiben")
+            print("3. Register-Referenz anzeigen")
+            print("4. Register überwachen")
+            print("5. Quick-Test (alle Sensoren)")
+            print("0. Beenden")
+            print("-"*60)
             
+            choice = input("Wähle Option: ")
+            
+            if choice == "1":
+                client.interactive_read()
+            elif choice == "2":
+                client.interactive_write()
+            elif choice == "3":
+                client.show_register_reference()
+            elif choice == "4":
+                client.monitor_registers()
+            elif choice == "5":
+                print("\n📊 QUICK TEST - Alle Sensoren")
+                print("-" * 60)
+                # Read all temperature sensors
+                for addr in [40011, 40013, 40015, 40017, 40019, 40021, 40023, 40025]:
+                    name, _, desc = REGISTER_INFO[addr]
+                    regs = client.read_register(addr, 2)
+                    if regs:
+                        value = float_from_registers(regs)
+                        print(f"{desc:<30}: {value:>6.2f}°C")
+                # Read heater status
+                regs = client.read_register(40100, 1)
+                if regs:
+                    print(f"{'Heater Status':<30}: {'ON' if regs[0] == 1 else 'OFF':>6}")
+            elif choice == "0":
+                break
+            else:
+                print("❌ Ungültige Option!")
+            
+            if choice != "0":
+                input("\nDrücke Enter zum Fortfahren...")
+                
+    except Exception as e:
+        print(f"\n❌ Fehler: {e}")
+        import traceback
+        traceback.print_exc()
+    
     finally:
-        loxone.disconnect()
+        client.disconnect()
 
 if __name__ == "__main__":
     main()

@@ -43,7 +43,7 @@ MODBUS_SERVER_PORT = config.get("modbus_server_port", 502)
 
 # Modbus Register Addresses for LOXOL/Solarmanager
 # Holding Registers (Read/Write) - Function Code 3/6/16
-MODBUS_REGISTERS = {
+MODBUS_REGISTERS_old = {
     # Sensor Data Registers (Read-Only) - Starting at 40001
     "Miner1HSRT": 40001,
     "Miner1Power": 40003,  # Uses 2 registers (40003-40004)
@@ -74,6 +74,54 @@ MODBUS_REGISTERS = {
     "HeaterCommand": 40200,  # 0=off, 1=on
     "HeaterMode": 40201,     # 1-8 for different modes
     "SystemReset": 40202,
+}
+
+# Modbus Register Addresses for LOXOLE
+MODBUS_REGISTERS = {
+    # Status Registers (Read-Only) - Starting at 40001
+    "Heating": 40001,           # int - Is heating active (0/1)
+    "Modes": 40002,             # int - Current modes bitmask
+    "PowerModes": 40003,        # int - Power modes (1-8)
+    "SystemStatus": 40004,      # int - System status (0=OK, 1=Error)
+    "CurrentPowerLevel": 40005, # int - Current power level (0-100)
+    "CurrentPowerLimit": 40006, # int - Current power limit (0-100)
+    
+    # Heater Control Registers (Read/Write) - Starting at 40100
+    "HeaterStatus": 40100,      # int - Heater on/off status
+    "HeaterErrorCodes": 40101,  # int - Error codes
+    "HeaterAutomation": 40102,  # int - Automation mode
+    "HeaterPowerMode": 40103,   # int - Power mode setting
+    "HeaterPowerLevel": 40104,  # int - Power level setting
+    "HeaterPowerLimit": 40105,  # int - Power limit setting
+    
+    # Miner Data (Read-Only) - Float values use 2 registers
+    "Miner1HSRT": 40106,        # float (2 registers: 40106-40107)
+    "Miner1Power": 40108,       # float (2 registers: 40108-40109)
+    "Miner1Uptime": 40110,      # int (1 register)
+    "Miner2HSRT": 40111,        # float (2 registers: 40111-40112)
+    "Miner2Power": 40113,       # float (2 registers: 40113-40114)
+    "Miner2Uptime": 40115,      # int (1 register)
+    
+    # Temperature Sensors (Read-Only) - All float values use 2 registers
+    "ColdWater": 40118,         # float (2 registers: 40118-40119)
+    "ColdOil": 40120,           # float (2 registers: 40120-40121)
+    "HotWater": 40122,          # float (2 registers: 40122-40123)
+    "HotOil": 40124,            # float (2 registers: 40124-40125)
+    "TempWaterTank1": 40126,    # float (2 registers: 40126-40127)
+    "TempWaterTank2": 40128,    # float (2 registers: 40128-40129)
+    "TempWaterTank3": 40130,    # float (2 registers: 40130-40131)
+    "TempWaterTank4": 40132,    # float (2 registers: 40132-40133)
+    
+    # Pump Data (Read-Only)
+    "PumpPrimaryAnalogOut": 40134,   # int (1 register)
+    "PumpSecondaryAnalogOut": 40135, # int (1 register)
+    
+    # Control Commands (Write-Only) - Starting at 40200
+    "HeaterCommand": 40200,     # int - 0=off, 1=on
+    "HeaterMode": 40201,        # int - 1-8 for different modes
+    "SystemReset": 40202,       # int - System reset command
+    "SystemResetStatus": 40203,   # Read-Only: 0=idle, 1=resetting, 2=complete
+    "LastResetTime": 40204,       # Read-Only: Timestamp of last reset
 }
 
 # Reverse mapping for quick lookup
@@ -198,10 +246,15 @@ def read_modbus_register(name):
     try:
         slave_context = modbus_context[0]  # Get the slave context (unit 0)
         
-        # Read two registers for float values
-        if name in ["Miner1HSRT", "Miner1Power", "Miner2HSRT", "Miner2Power", 
-                    "ColdWater", "ColdOil", "HotWater", "HotOil", 
-                    "TempWaterTank1", "TempWaterTank2", "TempWaterTank3", "TempWaterTank4"]:
+        # Define which registers are float (need 2 registers)
+        float_registers = [
+            "Miner1HSRT", "Miner1Power", "Miner2HSRT", "Miner2Power",
+            "ColdWater", "ColdOil", "HotWater", "HotOil",
+            "TempWaterTank1", "TempWaterTank2", "TempWaterTank3", "TempWaterTank4"
+        ]
+        
+        if name in float_registers:
+            # Read two registers for float values
             values = slave_context.getValues(3, address, 2)
             return modbus_registers_to_float(values[0], values[1])
         else:
@@ -553,6 +606,8 @@ topic_handlers = {
 
 #region: Modbus Write Handler =====================================================================
 
+# Erweiterung für check_modbus_writes() in ModBus_MQTT.py
+
 def check_modbus_writes():
     """Periodically check for Modbus write commands and process them"""
     while True:
@@ -581,11 +636,56 @@ def check_modbus_writes():
                 update_modbus_register("HeaterCommand", 0)
                 
                 print_mqtt(f"Processed Modbus command: {mqtt_command}")
+            
+            # Check SystemReset register
+            reset_command = read_modbus_register("SystemReset")
+            if reset_command is not None and reset_command != 0:
+                print_mqtt("⚠️ SYSTEM RESET TRIGGERED via Modbus!")
+                
+                # Perform system reset actions
+                perform_system_reset()
+                
+                # Reset the command register immediately
+                update_modbus_register("SystemReset", 0)
                 
         except Exception as e:
             print_mqtt(f"Error checking Modbus writes: {e}")
 
-#endregion
+def perform_system_reset():
+    """Execute system reset actions"""
+    try:
+        # 1. Reset all sensor values to initial state
+        print_mqtt("Resetting all sensor values...")
+        for key in sensor_attributes:
+            sensor_attributes[key] = INIT_VAL
+            update_modbus_register(key, INIT_VAL)
+        
+        # 2. Reset heater attributes
+        for key in heater_attributes:
+            heater_attributes[key] = INIT_VAL
+            if key in MODBUS_REGISTERS:
+                update_modbus_register(key, INIT_VAL)
+        
+        # 3. Clear error codes
+        update_modbus_register("HeaterErrorCodes", 0)
+        
+        # 4. Turn off heater
+        mqtt_command = {"cmd": 0, "mode": 1}  # OFF command
+        mqtt_client.publish(topic_homeassistant_ctrl_heater, 
+                          json.dumps(mqtt_command), qos=1)
+        
+        # 5. Send reset notification via MQTT
+        reset_msg = {
+            "event": "system_reset",
+            "timestamp": datetime.now().isoformat(),
+            "source": "modbus_command"
+        }
+        mqtt_client.publish("system/reset", json.dumps(reset_msg), qos=1)
+        
+        print_mqtt("✅ System reset completed")
+        
+    except Exception as e:
+        print_mqtt(f"❌ Error during system reset: {e}")
 
 # ====================================================================================================
 
