@@ -10,7 +10,7 @@ import time
 from datetime import datetime
 
 # Server Configuration
-SERVER_IP = "localhost"  # Ändere auf deine Docker-Host IP
+SERVER_IP = '127.0.0.1'  # Ändere auf deine Docker-Host IP
 SERVER_PORT = 5020
 
 # Register Reference
@@ -76,11 +76,14 @@ def float_to_registers(value):
 class InteractiveModbusClient:
     def __init__(self, host=SERVER_IP, port=SERVER_PORT):
         self.client = None
-        self.host = host
-        self.port = port
+        self.host = '127.0.0.1'
+        self.port = 5020
         
     def connect(self):
         """Connect to Modbus server"""
+        self.host ='127.0.0.1'
+        self.port = 5020
+        print(f"🔗 Verbinde zu {self.host}:{self.port}...")
         self.client = ModbusTcpClient(self.host, port=self.port)
         if not self.client.connect():
             print(f"❌ Kann nicht zu {self.host}:{self.port} verbinden!")
@@ -293,6 +296,8 @@ def main():
     print("="*60)
     print("INTERACTIVE MODBUS CLIENT")
     print("="*60)
+    print("Version: 1.0")
+    print("Erstellt von: Dein Name")
     
     # Get server address
     host = input(f"Server IP [{SERVER_IP}]: ") or SERVER_IP
@@ -302,6 +307,7 @@ def main():
     client = InteractiveModbusClient(host, port)
     
     if not client.connect():
+        print("❌ Verbindung zum Modbus-Server fehlgeschlagen!")
         return
     
     try:
