@@ -243,6 +243,7 @@ def update_modbus_register(name, value):
         print_mqtt(f"Error updating Modbus register {name}: {e}")
 
 def read_modbus_register(name):
+    print(f"Reading Modbus register: {name}")
     """Read a value from a Modbus register"""
     global modbus_context
     
@@ -393,7 +394,9 @@ def on_connect(client, userdata, flags, reason_code):
     client.subscribe(f"{topic_status_error}/#")
 
 def on_publish(client, userdata, mid):
-    print("Message published.")
+    #print("Message published.")
+    return
+
 
 def on_message(client, userdata, message):
     for topic_pattern, handler in topic_handlers.items():
@@ -542,6 +545,7 @@ def handle_heater_control(payload):
         3: "High"
     }
 
+
     try:
         payload_data = json.loads(payload)
 
@@ -623,6 +627,7 @@ topic_handlers = {
 def check_modbus_writes():
     """Periodically check for Modbus write commands and process them"""
     while True:
+        print(f'Starting Modbus write handler thread...')
         time.sleep(1)  # Check every second
         
         if modbus_context is None:
@@ -631,21 +636,47 @@ def check_modbus_writes():
         try:
             # Check HeaterCommand register for changes
             command = read_modbus_register("HeaterCommand")
-            if command is not None and command != 0:
+            if command is not None:
                 mode = read_modbus_register("HeaterMode")
                 
                 # Create MQTT command
-                mqtt_command = {
-                    "cmd": int(command),
-                    "mode": int(mode) if mode else 1
-                }
+                if command == 0:
+                    print_mqtt("Received HeaterCommand: OFF")
+                    mqtt_command = {
+                        "cmd": 0  # OFF command
+                    }
+                
+                else:
+                    if mode == 1:
+                        print_mqtt(f"Received HeaterCommand: ON with mode {mode}")
+                        mqtt_command = {
+                            "cmd": 1,  # ON command
+                            "mode": 1,  # Default mode
+                            "power_level": read_modbus_register("HeaterPowerLevel")
+                        }
+                    elif mode in range(3, 9):
+                        mqtt_command = {
+                            "cmd": int(command),
+                            "mode": int(mode),
+                            "power_mode": read_modbus_register("HeaterPowerMode")
+
+                    }
+                    else:
+                        print_mqtt(f"Received HeaterCommand: ON with mode {mode}")
+                        mqtt_command = {
+                            "cmd": 1,  # ON command
+                            "mode": 2,  # Default mode
+                            "power_limit": read_modbus_register("HeaterPowerLimit"),
+                        }
+
+                    
                 
                 # Send command via MQTT
                 mqtt_client.publish(topic_homeassistant_ctrl_heater, 
                                   json.dumps(mqtt_command), qos=1)
                 
                 # Reset command register
-                update_modbus_register("HeaterCommand", 0)
+                #update_modbus_register("HeaterCommand", 0)
                 
                 print_mqtt(f"Processed Modbus command: {mqtt_command}")
             
@@ -702,7 +733,7 @@ def perform_system_reset():
 # ====================================================================================================
 
 def print_mqtt(message):
-    print(f"MQTT: {message}")
+    #print(f"MQTT: {message}")
     if not isinstance(message, str):
         message = str(message)
 
