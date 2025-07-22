@@ -1,0 +1,197 @@
+{
+    "thresholds": {
+        "low_speicher": 50,
+        "high_speicher": 60,
+
+        "miner_chip_temp": 97,
+        "miner_board_temp": 79,
+
+        "temp_primary_before_exchange": 67,
+
+        "temp_outside_start": 18,
+        "temp_outside_stop": 1000,
+
+        "min_rising_trend": 0.001,
+
+        "temp_secondary_max_overheat": 3,
+
+        "recovery_temp_primary_before_exchange": 50
+        
+    },
+    "target_values": 
+    {
+        "temp_primary_before_exchange": 63,
+
+        "min_diff_supply_return": 6,
+        "max_diff_supply_return": 14
+    },
+    "inlet_outlet":
+    {
+        "start_temp": 42,
+        "stop_temp": 45,
+        "min_pump_speed": 30
+    },
+    "valve_control":
+    {
+        "on_value": 10,
+        "off_value": 2
+    },
+    "pump_control":
+    {
+        "max_percent": 100,
+        "min_percent": 20,
+        "shutdown_delay": 120
+    },
+    "primary_control_loop":
+    {
+        "P": -3,
+        "I": -0.3,
+        "D": -0.1,
+        "probe_time": 30
+    },
+    "secondary_control_loop":
+    {
+        "P": -0.2,
+        "I": -0.1,
+        "D": -0.01,
+        "probe_time": 300
+    },
+    "power_modes":
+    {
+        "low":
+        {
+            "hashrate": 40,
+            "powermode": "Normal",
+            "pump1": 20,
+            "pump2": 20
+        },
+        "normal":
+        {
+            "hashrate": 90,
+            "powermode": "Normal",
+            "pump1": 40,
+            "pump2": 40
+        },
+        "high":
+        {
+            "hashrate": 100,
+            "powermode": "Normal",
+            "pump1": 80,
+            "pump2": 80
+        }
+    },
+    "power_levels":
+    {
+        "1":
+        {
+            "hashrate": 20,
+            "powermode": "Normal",
+            "pump1": 20,
+            "pump2": 20
+        },
+        "2":
+        {
+            "hashrate": 40,
+            "powermode": "Normal",
+            "pump1": 40,
+            "pump2": 40
+        },
+        "3":
+        {
+            "hashrate": 60,
+            "powermode": "Normal",
+            "pump1": 40,
+            "pump2": 40
+        },
+        "4":
+        {
+            "hashrate": 80,
+            "powermode": "Normal",
+            "pump1": 40,
+            "pump2": 40
+        },
+        "5":
+        {
+            "hashrate": 100,
+            "powermode": "Normal",
+            "pump1": 80,
+            "pump2": 80
+        },
+        "6":
+        {
+            "hashrate": 120,
+            "powermode": "Normal",
+            "pump1": 80,
+            "pump2": 80
+        },
+        "7":
+        {
+            "hashrate": 140,
+            "powermode": "Normal",
+            "pump1": 80,
+            "pump2": 80
+        },
+        "8":
+        {
+            "hashrate": 160,
+            "powermode": "Normal",
+            "pump1": 80,
+            "pump2": 80
+        },
+        "9":
+        {
+            "hashrate": 180,
+            "powermode": "Normal",
+            "pump1": 80,
+            "pump2": 80
+        },
+        "10":
+        {
+            "hashrate": 200,
+            "powermode": "Normal",
+            "pump1": 80,
+            "pump2": 80
+        }
+    },
+    "PV_levels":
+    {
+        "minimum_power": 1500,
+        "start_value": 0,
+        "step_size": 2000,
+        "1":
+        {
+            "pump1": 20,
+            "pump2": 20
+        },
+        "2":
+        {
+            "pump1": 40,
+            "pump2": 40
+        },
+        "3":
+        {
+            "pump1": 40,
+            "pump2": 40
+        },
+        "4":
+        {
+            "pump1": 40,
+            "pump2": 40
+        },
+        "5":
+        {
+            "pump1": 80,
+            "pump2": 80
+        },
+        "6":
+        {
+            "pump1": 80,
+            "pump2": 80
+        },
+        "7":
+        {
+            "pump1": 80,
+            "pump2": 80
+        }
+    }
+}

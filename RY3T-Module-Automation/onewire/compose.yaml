@@ -1,0 +1,17 @@
+version: '3.8'
+
+services:
+  onewire:
+    build: .
+    image: onewire-image
+    container_name: onewire-container
+    privileged: true
+    stdin_open: true
+    restart: always
+    tty: true
+    networks:
+      - mqtt5-network
+
+networks:
+  mqtt5-network:
+    external: true

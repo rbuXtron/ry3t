@@ -1,0 +1,16 @@
+version: '3.8'
+
+services:
+  automation:
+    build: .
+    image: automation-image
+    container_name: automation-container
+    stdin_open: true
+    tty: true
+    restart: always
+    networks:
+      - mqtt5-network
+
+networks:
+  mqtt5-network:
+    external: true
