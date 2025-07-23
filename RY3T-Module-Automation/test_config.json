@@ -1,0 +1,77 @@
+{
+    "system": {
+        "name": "Wärmetauscher-Regelung",
+        "version": "1.0",
+        "description": "Max-Temperatur Primär & Delta-T Sekundär",
+        "sample_time": 10.0,
+        "logging_enabled": true
+    },
+    "mqtt": {
+        "enabled": false,
+        "broker": "localhost",
+        "port": 1883,
+        "topic_ctrl_core": "ctrl/core",
+        "topic_log": "log/heat_exchanger",
+        "topic_data": "data/heat_exchanger"
+    },
+    "primary_circuit": {
+        "max_temperature": 65.0,
+        "safety_margin": 2.0,
+        "min_pump_speed": 15.0,
+        "max_pump_speed": 100.0,
+        "pid": {
+            "kp": 4.0,
+            "ki": 0.03,
+            "kd": 20.0,
+            "trend_weight": 4.0,
+            "prediction_horizon": 20,
+            "integral_limits": [
+                -30,
+                30
+            ]
+        },
+        "emergency": {
+            "enabled": true,
+            "boost_value": 20.0,
+            "critical_margin": 1.0
+        }
+    },
+    "secondary_circuit": {
+        "delta_t_setpoint": 3.0,
+        "min_pump_speed": 10.0,
+        "max_pump_speed": 100.0,
+        "pid": {
+            "kp": 6.0,
+            "ki": 0.15,
+            "kd": 15.0,
+            "trend_weight": 2.5,
+            "prediction_horizon": 10,
+            "integral_limits": [
+                -30,
+                30
+            ]
+        },
+        "feedforward": {
+            "base_factor": 0.4,
+            "low_delta_t_boost": 20.0,
+            "low_delta_t_threshold": 0.5
+        }
+    },
+    "coordination": {
+        "balance_enabled": true,
+        "max_speed_difference": 40.0,
+        "min_flow_difference": 5.0,
+        "optimal_ratio_min": 0.7,
+        "optimal_ratio_max": 1.5
+    },
+    "safety": {
+        "temp_violation_limit": 5,
+        "auto_reset_time": 300,
+        "alarm_enabled": true
+    },
+    "data_logging": {
+        "history_size": 360,
+        "log_interval": 60,
+        "export_format": "csv"
+    }
+}
