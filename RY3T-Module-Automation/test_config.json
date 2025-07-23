@@ -15,7 +15,7 @@
         "topic_data": "data/heat_exchanger"
     },
     "primary_circuit": {
-        "max_temperature": 65.0,
+        "max_temperature": 75.0,
         "safety_margin": 2.0,
         "min_pump_speed": 15.0,
         "max_pump_speed": 100.0,
@@ -37,7 +37,7 @@
         }
     },
     "secondary_circuit": {
-        "delta_t_setpoint": 3.0,
+        "delta_t_setpoint": 5.0,
         "min_pump_speed": 10.0,
         "max_pump_speed": 100.0,
         "pid": {
