@@ -1,0 +1,51 @@
+{
+    "mqtt": {
+        "broker": "127.0.0.1",
+        "port": 1883,
+        "client_id": "trend_pid_controller",
+        "topics": {
+            "temp_data": "data/onewire",
+            "pump_control": "ctrl/core",
+            "pump_enable": "ctrl/automation/pumpEnable",
+            "status": "status/pid",
+            "log": "log/pid",
+            "automation_status": "status/automation",
+            "heating_status": "status/heating"
+        }
+    },
+    "control": {
+        "sample_time": 25.0,
+        "primary_setpoint": 63.0,
+        "secondary_delta_t": 3.0,
+        "hard_control_threshold": 2.0,
+        "startup_pump_speed": 50.0,
+        "enable_on_startup": true
+    },
+    "primary_pid": {
+        "kp": 4.0,
+        "ki": 0.03,
+        "kd": 20.0,
+        "trend_weight": 4.0,
+        "min_output": 20.0,
+        "max_output": 100.0
+    },
+    "secondary_pid": {
+        "kp": 6.0,
+        "ki": 0.15,
+        "kd": 15.0,
+        "trend_weight": 2.5,
+        "min_output": 20.0,
+        "max_output": 100.0
+    },
+    "sensor_mapping": {
+        "primary_supply": "TempPrimaryWaterBeforeExchange",
+        "primary_return": "TempPrimaryWaterAfterExchange",
+        "secondary_supply": "TempSecondaryWaterAfterExchange",
+        "secondary_return": "TempSecondaryWaterBeforeExchange"
+    },
+    "integration": {
+        "automation_mode": "Speicher",
+        "manual_mode_topic": "ctrl/automation/manualmode",
+        "heating_state_topic": "status/heating"
+    }
+}
